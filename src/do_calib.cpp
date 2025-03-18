@@ -1,156 +1,135 @@
-/*********************************************************************
-* Software License Agreement (BSD License)
-*
-*  Copyright (c) 2015, Daniel Koch
-*  All rights reserved.
-*
-*  Redistribution and use in source and binary forms, with or without
-*  modification, are permitted provided that the following conditions
-*  are met:
-*
-*   * Redistributions of source code must retain the above copyright
-*     notice, this list of conditions and the following disclaimer.
-*   * Redistributions in binary form must reproduce the above
-*     copyright notice, this list of conditions and the following
-*     disclaimer in the documentation and/or other materials provided
-*     with the distribution.
-*   * Neither the name of the copyright holder nor the names of its
-*     contributors may be used to endorse or promote products derived
-*     from this software without specific prior written permission.
-*
-*  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-*  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-*  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
-*  FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
-*  COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
-*  INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
-*  BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-*  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-*  CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
-*  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
-*  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-*  POSSIBILITY OF SUCH DAMAGE.
-*********************************************************************/
+#include "rclcpp/rclcpp.hpp"
+#include "sensor_msgs/msg/imu.hpp"
 
-/**
- * \file do_calib.cpp
- * \author Daniel Koch <daniel.p.koch@gmail.com>
- *
- * Class for performing IMU calibration
- */
+#include "imu_calib/accel_calib.h"
 
-#include "imu_calib/do_calib.h"
+#include <string>
+#include <vector>
+#include <queue>
 
-namespace imu_calib
-{
+using namespace imu_calib;
 
-DoCalib::DoCalib() :
-  state_(START)
-{
-  ros::NodeHandle nh;
-  imu_sub_ = nh.subscribe("imu", 1, &DoCalib::imuCallback, this);
+class DoCalib : public rclcpp::Node {
+  public:
+    DoCalib() : Node("do_calib"), state_(START) {
+      measurements_per_orientation_ = this->declare_parameter<int>("measurements", 500);
+      reference_acceleration_ = this->declare_parameter<int>("reference_acceleration", 9.808665);
+      output_file_ = this->declare_parameter<std::string>("output_file", "imu_calib.yaml");
+      RCLCPP_INFO(this->get_logger(), "do_calib node starting...");
 
-  ros::NodeHandle nh_private("~");
-  nh_private.param<int>("measurements", measurements_per_orientation_, 500);
-  nh_private.param<double>("reference_acceleration", reference_acceleration_, 9.80665);
-  nh_private.param<std::string>("output_file", output_file_, "imu_calib.yaml");
+      orientations_.push(AccelCalib::XPOS);
+      orientations_.push(AccelCalib::XNEG);
+      orientations_.push(AccelCalib::YPOS);
+      orientations_.push(AccelCalib::YNEG);
+      orientations_.push(AccelCalib::ZPOS);
+      orientations_.push(AccelCalib::ZNEG);
 
-  orientations_.push(AccelCalib::XPOS);
-  orientations_.push(AccelCalib::XNEG);
-  orientations_.push(AccelCalib::YPOS);
-  orientations_.push(AccelCalib::YNEG);
-  orientations_.push(AccelCalib::ZPOS);
-  orientations_.push(AccelCalib::ZNEG);
+      orientation_labels_[AccelCalib::XPOS] = "X+";
+      orientation_labels_[AccelCalib::XNEG] = "X-";
+      orientation_labels_[AccelCalib::YPOS] = "Y+";
+      orientation_labels_[AccelCalib::YNEG] = "Y-";
+      orientation_labels_[AccelCalib::ZPOS] = "Z+";
+      orientation_labels_[AccelCalib::ZNEG] = "Z-";
 
-  orientation_labels_[AccelCalib::XPOS] = "X+";
-  orientation_labels_[AccelCalib::XNEG] = "X-";
-  orientation_labels_[AccelCalib::YPOS] = "Y+";
-  orientation_labels_[AccelCalib::YNEG] = "Y-";
-  orientation_labels_[AccelCalib::ZPOS] = "Z+";
-  orientation_labels_[AccelCalib::ZNEG] = "Z-";
-}
+      imu_sub_ = this->create_subscription<sensor_msgs::msg::Imu>(
+        "do_calib",
+        1, 
+        std::bind(&DoCalib::imu_callback, this, std::placeholders::_1)
+      );
 
-bool DoCalib::running()
-{
-  return state_ != DONE;
-}
-
-void DoCalib::imuCallback(sensor_msgs::Imu::ConstPtr imu)
-{
-  bool accepted;
-
-  switch (state_)
-  {
-  case START:
-    calib_.beginCalib(6*measurements_per_orientation_, reference_acceleration_);
-    state_ = SWITCHING;
-    break;
-
-
-  case SWITCHING:
-    if (orientations_.empty())
-    {
-      state_ = COMPUTING;
     }
-    else
-    {
-      current_orientation_ = orientations_.front();
 
-      orientations_.pop();
-      measurements_received_ = 0;
-
-      std::cout << "Orient IMU with " << orientation_labels_[current_orientation_] << " axis up and press Enter";
-      std::cin.get();
-      std::cout << "Recording measurements...";
-
-      state_ = RECEIVING;
+    bool running() {
+      return state_ != DONE;
     }
-    break;
 
+  private:
+    enum DoCalibState { START, SWITCHING, RECEIVING, COMPUTING, DONE };
 
-  case RECEIVING:
-    accepted = calib_.addMeasurement(current_orientation_,
-                                     imu->linear_acceleration.x,
-                                     imu->linear_acceleration.y,
-                                     imu->linear_acceleration.z);
+    AccelCalib calib_;
+    DoCalibState state_;
+    int measurements_per_orientation_;
+    int measurements_received_;
 
-    measurements_received_ += accepted ? 1 : 0;
-    if (measurements_received_ >= measurements_per_orientation_)
-    {
-      std::cout << " Done." << std::endl;
-      state_ = SWITCHING;
-    }
-    break;
+    double reference_acceleration_;
+    std::string output_file_;
 
+    std::queue<AccelCalib::Orientation> orientations_;
+    AccelCalib::Orientation current_orientation_;
 
-  case COMPUTING:
-    std::cout << "Computing calibration parameters...";
-    if (calib_.computeCalib())
-    {
-      std::cout << " Success!"  << std::endl;
+    std::string orientation_labels_[6];
 
-      std::cout << "Saving calibration file...";
-      if (calib_.saveCalib(output_file_))
-      {
-        std::cout << " Success!" << std::endl;
-      }
-      else
-      {
-        std::cout << " Failed." << std::endl;
+    rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub_;
+
+    void imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg) {
+      bool accepted;
+      switch(state_) {
+        case START:
+          calib_.beginCalib(measurements_per_orientation_, reference_acceleration_);
+          state_ = SWITCHING;
+          break;
+        case SWITCHING:
+          if (orientations_.empty()) {
+            state_ = COMPUTING;
+          } else {
+            current_orientation_ = orientations_.front();
+
+            orientations_.pop();
+            measurements_received_ = 0;
+
+            std::cout << "Orient IMU with " << orientation_labels_[current_orientation_] << " axis up and press Enter";
+            std::cin.get();
+            std::cout << "Recording measurements...";
+            state_ = RECEIVING;
+          }
+          break;
+        case RECEIVING:
+          accepted = calib_.addMeasurement(
+            current_orientation_,
+            msg->linear_acceleration.x,
+            msg->linear_acceleration.y,
+            msg->linear_acceleration.z
+          );
+
+          measurements_received_ += accepted ? 1 : 0;
+
+          if (measurements_received_ >= measurements_per_orientation_) {
+            std::cout << "Done." << std::endl;
+          }
+
+          state_ = SWITCHING;
+          break;
+        case COMPUTING:
+          std::cout << "Computing calibration parameters...";
+          if (calib_.computeCalib()) {
+            std::cout << " Success!" << std:: endl;
+
+            std::cout << "Saving calibration file...";
+            if (calib_.saveCalib(output_file_)) {
+              std::cout << " Success!" << std::endl;
+            } else {
+              std::cout << " Failed." << std::endl;
+            }
+          } else {
+            std::cout << " Failed.";
+            RCLCPP_ERROR(this->get_logger(), "Calibration Failed!!!");
+          }
+          state_ = DONE;
+          break;
+        case DONE:
+          break;
       }
     }
-    else
-    {
-      std::cout << " Failed.";
-      ROS_ERROR("Calibration failed");
-    }
-    state_ = DONE;
-    break;
 
+};
 
-  case DONE:
-    break;
+int main (int argc, char** argv) {
+  rclcpp::init(argc, argv);
+  std::shared_ptr<DoCalib> node = std::make_shared<DoCalib>();
+
+  while (rclcpp::ok() && node->running()) {
+    rclcpp::spin_some(node);
   }
-}
 
-} // namespace accel_calib
+  return 0;
+}
