@@ -1,24 +1,23 @@
 <?xml version="1.0"?>
-<package format="2">
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
   <name>imu_calib</name>
   <version>0.0.0</version>
-  <description>Package for computing and applying IMU calibrations</description>
-
-  <author email="daniel.p.koch@gmail.com">Daniel Koch</author>
-  <maintainer email="daniel.p.koch@gmail.com">Daniel Koch</maintainer>
-
+  <description>ROS2 implementation of imu_calib by dkoch</description>
+  <maintainer email="jhensenrayagni@gmail.com">jragni</maintainer>
   <license>BSD</license>
 
-  <url type="website">http://wiki.ros.org/imu_calib</url>
-  <url type="repository">https://github.com/dpkoch/imu_calib.git</url>
-  <url type="bugtracker">https://github.com/dpkoch/imu_calib/issues</url>
+  <buildtool_depend>ament_cmake</buildtool_depend>
 
-  <buildtool_depend>catkin</buildtool_depend>
-
-  <depend>cmake_modules</depend>
-  <depend>eigen</depend>
-  <depend>roscpp</depend>
+  <depend>rclcpp</depend>
   <depend>sensor_msgs</depend>
   <depend>yaml-cpp</depend>
+  <depend>Eigen3</depend>
 
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
 </package>
