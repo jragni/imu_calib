@@ -1,6 +1,6 @@
 # imu_calib
 
-This repository contains a ROS package with tools for computing and applying calibration parameters to IMU measurements.
+This repository contains the ROS2 refactor of the ROS package with tools for computing and applying calibration parameters to IMU measurements created by Daniel Koch.
 
 ## Usage
 The package contains two nodes. The first computes the accelerometer calibration parameters and saves them to a YAML file, and needs to be run only once. After you have run this node to generate the YAML calibration file, the second node uses that file to apply the calibration to an uncalibrated IMU topic to produce a calibrated IMU topic.
