@@ -28,12 +28,12 @@ class ApplyCalib : public rclcpp::Node {
       int queue_size = this->declare_parameter<int>("queue_size", 5);
 
       raw_sub_ = this->create_subscription<sensor_msgs::msg::Imu>(
-        "raw",
+        "/transbot/imu",
         queue_size,
         std::bind(&ApplyCalib::raw_imu_callback, this, std::placeholders::_1)
       );
 
-      corrected_pub_ = this->create_publisher<sensor_msgs::msg::Imu>("corrected", queue_size);
+      corrected_pub_ = this->create_publisher<sensor_msgs::msg::Imu>("/imu/data_raw", queue_size);
       
       RCLCPP_INFO(this->get_logger(), "apply_calib node running...");
     }
