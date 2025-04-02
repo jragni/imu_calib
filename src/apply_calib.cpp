@@ -76,9 +76,9 @@ class ApplyCalib : public rclcpp::Node {
         &corrected.linear_acceleration.z
       );
 
-      corrected.angular_velocity.x = msg.angular_velocity.x - gyro_bias_x_;
-      corrected.angular_velocity.y = msg.angular_velocity.y - gyro_bias_y_;
-      corrected.angular_velocity.z = msg.angular_velocity.z - gyro_bias_z_;
+      corrected.angular_velocity.x = msg->angular_velocity.x - gyro_bias_x_;
+      corrected.angular_velocity.y = msg->angular_velocity.y - gyro_bias_y_;
+      corrected.angular_velocity.z = msg->angular_velocity.z - gyro_bias_z_;
 
       corrected.header.stamp = this->get_clock()->now();
       corrected.header.frame_id = "imu_link";
