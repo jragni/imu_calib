@@ -1,5 +1,6 @@
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/imu.hpp"
+#include "std_msgs/msg/header.hpp"
 
 #include "imu_calib/accel_calib.h"
 
@@ -77,6 +78,9 @@ class ApplyCalib : public rclcpp::Node {
       corrected.angular_velocity.x -= gyro_bias_x_;
       corrected.angular_velocity.y -= gyro_bias_y_;
       corrected.angular_velocity.z -= gyro_bias_z_;
+
+      corrected.header = msg->header;
+
 
       corrected_pub_->publish(corrected);
     }
