@@ -79,7 +79,7 @@ class ApplyCalib : public rclcpp::Node {
       corrected.angular_velocity.y -= gyro_bias_y_;
       corrected.angular_velocity.z -= gyro_bias_z_;
 
-      corrected.header.stamp = this.get_clock()->now();
+      corrected.header.stamp = this->get_clock()->now();
       corrected.header.frame_id = "imu_link";
 
       corrected_pub_->publish(corrected);
